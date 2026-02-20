@@ -417,4 +417,9 @@ public class CPU extends Thread {
        
     }
     public PCB getRunning() { return running; }
+    
+    // Método para la UI: Obtiene el límite de RAM para la barra de porcentaje
+    public int getMaxEnMemoria() {
+        return this.maxEnMemoria; 
+    }
 }

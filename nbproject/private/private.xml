@@ -3,12 +3,15 @@
     <editor-bookmarks xmlns="http://www.netbeans.org/ns/editor-bookmarks/2" lastBookmarkId="0"/>
     <open-files xmlns="http://www.netbeans.org/ns/projectui-open-files/2">
         <group>
-            <file>file:/Users/jleal/Desktop/Proyecto-SSOO/src/Models/PCB.java</file>
-            <file>file:/Users/jleal/Desktop/Proyecto-SSOO/src/com/myos/main/MainSimulator.java</file>
-            <file>file:/Users/jleal/Desktop/Proyecto-SSOO/src/edd/Cola.java</file>
-            <file>file:/Users/jleal/Desktop/Proyecto-SSOO/src/edd/Lista.java</file>
-            <file>file:/Users/jleal/Desktop/Proyecto-SSOO/src/edd/Nodo.java</file>
-            <file>file:/Users/jleal/Desktop/Proyecto-SSOO/src/Models/Estado.java</file>
+            <file>file:/C:/Users/jesus%20rodriguez/OneDrive/Escritorio/SIMULATOR%20RTOS/SimuladorRTOS/src/Models/CPU.java</file>
+            <file>file:/C:/Users/jesus%20rodriguez/OneDrive/Escritorio/SIMULATOR%20RTOS/SimuladorRTOS/src/edd/Cola.java</file>
+            <file>file:/C:/Users/jesus%20rodriguez/OneDrive/Escritorio/SIMULATOR%20RTOS/SimuladorRTOS/src/Scheduler/PolicyType.java</file>
+            <file>file:/C:/Users/jesus%20rodriguez/OneDrive/Escritorio/SIMULATOR%20RTOS/SimuladorRTOS/src/Models/InterruptGenerator.java</file>
+            <file>file:/C:/Users/jesus%20rodriguez/OneDrive/Escritorio/SIMULATOR%20RTOS/SimuladorRTOS/src/Models/PCB.java</file>
+            <file>file:/C:/Users/jesus%20rodriguez/OneDrive/Escritorio/SIMULATOR%20RTOS/SimuladorRTOS/src/edd/Nodo.java</file>
+            <file>file:/C:/Users/jesus%20rodriguez/OneDrive/Escritorio/SIMULATOR%20RTOS/SimuladorRTOS/src/Scheduler/Scheduler.java</file>
+            <file>file:/C:/Users/jesus%20rodriguez/OneDrive/Escritorio/SIMULATOR%20RTOS/SimuladorRTOS/src/Models/Estado.java</file>
+            <file>file:/C:/Users/jesus%20rodriguez/OneDrive/Escritorio/SIMULATOR%20RTOS/SimuladorRTOS/src/edd/Lista.java</file>
         </group>
     </open-files>
 </project-private>

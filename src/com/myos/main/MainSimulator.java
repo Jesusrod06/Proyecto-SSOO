@@ -3,64 +3,49 @@
  * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Main.java to edit this template
  */
 package com.myos.main;
-
 import Models.CPU;
 import Models.InterruptGenerator;
 import Models.PCB;
-import Scheduler.Scheduler;
 import Scheduler.PolicyType;
+import Scheduler.Scheduler;
 import edd.Lista;
+import views.MainFrame; // Importamos tu ventana principal
 
 import java.util.concurrent.Semaphore;
+import javax.swing.SwingUtilities;
 
 public class MainSimulator {
-
     public static void main(String[] args) {
-        // Colas
+        
+        // 1. Instanciamos nuestras estructuras de datos 100% personalizadas
         Lista<PCB> nuevos = new Lista<>();
         Lista<PCB> listos = new Lista<>();
         Lista<PCB> bloqueados = new Lista<>();
         Lista<PCB> terminados = new Lista<>();
-        Lista<PCB> listoSusp = new Lista<>();
-        Lista<PCB> bloqSusp = new Lista<>();
+        Lista<PCB> listoSuspendido = new Lista<>();
+        Lista<PCB> bloqueadoSuspendido = new Lista<>();
 
-        // Semáforo
+        // 2. Creamos el Semáforo de control de concurrencia y el Planificador
         Semaphore mutex = new Semaphore(1);
+        Scheduler scheduler = new Scheduler(PolicyType.ROUND_ROBIN, 3); // Por defecto inicia en RR con Quantum 3
 
-        // Scheduler (ej. RR quantum 4)
-        Scheduler scheduler = new Scheduler(PolicyType.ROUND_ROBIN, 4);
+        // 3. Ensamblamos la CPU (El cerebro)
+        int velocidadRelojMs = 500; // 500 milisegundos (medio segundo) por ciclo para que alcancemos a leer la pantalla
+        int maxRAM = 5; // Límite de la memoria multiprogramada
+        
+        CPU cpu = new CPU(nuevos, listos, bloqueados, terminados, listoSuspendido, bloqueadoSuspendido, 
+                          mutex, scheduler, velocidadRelojMs, maxRAM);
 
-        // Kernel CPU
-        CPU cpu = new CPU(nuevos, listos, bloqueados, terminados, listoSusp, bloqSusp,
-                mutex, scheduler,
-                250,  // ciclo ms (editable)
-                15    // max procesos en memoria
-        );
+        // 4. Conectamos el hardware generador de interrupciones
+        InterruptGenerator interruptor = new InterruptGenerator(cpu);
 
-        // Procesos iniciales aleatorios (sin archivos)
-        // (lo ideal: esto lo hagas desde una clase ProcessFactory)
-        for (int i = 0; i < 8; i++) {
-            boolean io = (i % 2 == 0);
-            PCB p = new PCB("P" + (i+1),
-                    20 + (i * 3),
-                    1 + (i % 5),
-                    60 + (i * 5),
-                    io,
-                    5 + (i % 4),
-                    6 + (i % 5)
+        // 5. ¡Lanzamos la Interfaz Gráfica de forma segura (Hilo de Eventos de Swing)!
+        SwingUtilities.invokeLater(() -> {
+            MainFrame ventana = new MainFrame(
+                cpu, interruptor, scheduler, nuevos, listos, bloqueados, terminados, listoSuspendido, bloqueadoSuspendido, mutex
             );
-            nuevos.addLast(p);
-        }
-
-        // Interrupciones
-        InterruptGenerator ig = new InterruptGenerator(cpu);
-
-        // Start
-        cpu.start();
-        ig.start();
-        cpu.startSimulation();
-
-        // TODO: aquí deberías abrir tu GUI Swing (JFrame) y pasarle referencias a cpu/colas/scheduler/mutex.
-        System.out.println("Simulador iniciado (por ahora sin GUI).");
+            ventana.setVisible(true);
+        });
     }
 }
+

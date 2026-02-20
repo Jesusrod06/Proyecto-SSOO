@@ -18,7 +18,10 @@ public class InterruptGenerator extends Thread {
         this.rnd = new Random();
     }
 
-    public void stopGen() { running = false; }
+   public void stopGen() { 
+        this.running = false; 
+        this.interrupt(); // 
+    }
 
     @Override
     public void run() {
