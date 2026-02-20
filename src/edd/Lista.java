@@ -4,84 +4,94 @@
  */
 package edd;
 
-/**
- *
- * @author jesus rodriguez
- */
-public class Lista <T> {
-private Nodo<T> cabeza;
-    private int tamano;
+public class Lista<T> {
+    private Nodo<T> cabeza;
+    private int size;
 
-    // Constructor
     public Lista() {
-    this.cabeza = null;
-        this.tamano = 0;
+        this.cabeza = null;
+        this.size = 0;
     }
 
-    public boolean esVacia() {
-        return cabeza == null;
-    }
+    public int size() { return size; }
+    public boolean isEmpty() { return size == 0; }
 
-    public int getTamano() {
-        return tamano;
-    }
-
-    // 1. INSERTAR: Agrega un elemento al final de la lista
-    public void insertar(T dato) {
-        Nodo<T> nuevoNodo = new Nodo<>(dato);
-        if (esVacia()) {
-            cabeza = nuevoNodo;
+    public void addLast(T value) {
+        Nodo<T> n = new Nodo<>(value);
+        if (cabeza == null) {
+            cabeza = n;
         } else {
             Nodo<T> aux = cabeza;
-            while (aux.getSiguiente() != null) {
-                aux = aux.getSiguiente();
-            }
-            aux.setSiguiente(nuevoNodo);
+            while (aux.getSiguiente() != null) aux = aux.getSiguiente();
+            aux.setSiguiente(n);
         }
-        tamano++;
+        size++;
     }
 
-    // 2. OBTENER: Devuelve el elemento en una posición específica
-    public T obtener(int indice) {
-        if (indice < 0 || indice >= tamano) {
-            return null;
-        }
+    public void addFirst(T value) {
+        Nodo<T> n = new Nodo<>(value);
+        n.setSiguiente(cabeza);
+        cabeza = n;
+        size++;
+    }
+
+    public T get(int index) {
+        if (index < 0 || index >= size) return null;
         Nodo<T> aux = cabeza;
-        for (int i = 0; i < indice; i++) {
-            aux = aux.getSiguiente();
-        }
+        for (int i = 0; i < index; i++) aux = aux.getSiguiente();
         return aux.getContenido();
     }
 
-    // 3. ELIMINAR: Busca un elemento y lo borra (Útil para liberar RAM)
-    public boolean eliminar(T dato) {
-        if (esVacia()) {
-            return false;
-        }
+    public T removeFirst() {
+        if (cabeza == null) return null;
+        T val = cabeza.getContenido();
+        cabeza = cabeza.getSiguiente();
+        size--;
+        return val;
+    }
 
-        // Si es el primero
-        if (cabeza.getContenido().equals(dato)) {
+    public boolean remove(T value) {
+        if (cabeza == null) return false;
+        if (cabeza.getContenido() == value) {
             cabeza = cabeza.getSiguiente();
-            tamano--;
+            size--;
             return true;
         }
-
-        // Si está en el medio o al final
-        Nodo<T> aux = cabeza;
-        while (aux.getSiguiente() != null) {
-            if (aux.getSiguiente().getContenido().equals(dato)) {
-                aux.setSiguiente(aux.getSiguiente().getSiguiente());
-                tamano--;
+        Nodo<T> prev = cabeza;
+        Nodo<T> aux = cabeza.getSiguiente();
+        while (aux != null) {
+            if (aux.getContenido() == value) {
+                prev.setSiguiente(aux.getSiguiente());
+                size--;
                 return true;
             }
+            prev = aux;
             aux = aux.getSiguiente();
         }
         return false;
     }
 
-    //  VACIAR: Limpia la lista completa
-    public void vaciar() {
-        cabeza = null;
-        tamano = 0;
+    public Nodo<T> getHeadNode() { return cabeza; }
+
+    // Inserción ordenada según comparador propio (sin java.util.Comparator)
+    public interface Cmp<T> { int compare(T a, T b); }
+
+    public void insertSorted(T value, Cmp<T> cmp) {
+        Nodo<T> n = new Nodo<>(value);
+        if (cabeza == null || cmp.compare(value, cabeza.getContenido()) <= 0) {
+            n.setSiguiente(cabeza);
+            cabeza = n;
+            size++;
+            return;
+        }
+        Nodo<T> prev = cabeza;
+        Nodo<T> aux = cabeza.getSiguiente();
+        while (aux != null && cmp.compare(value, aux.getContenido()) > 0) {
+            prev = aux;
+            aux = aux.getSiguiente();
+        }
+        prev.setSiguiente(n);
+        n.setSiguiente(aux);
+        size++;
     }
 }

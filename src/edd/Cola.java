@@ -4,93 +4,66 @@
  */
 package edd;
 
-/**
- *
- * @author jesus rodriguez
- */
-public class Cola <T>{
-    private Nodo<T> cabeza;
-    private Nodo<T> cola;
-    private int tamano;
+public class Cola<T> {
+    private Nodo<T> frente;
+    private Nodo<T> fin;
+    private int size;
 
     public Cola() {
-        this.cabeza = null;
-        this.cola = null;
-        this.tamano = 0;
+        frente = null;
+        fin = null;
+        size = 0;
     }
 
-    public boolean esVacia() {
-        return cabeza == null;
-    }
+    public int size() { return size; }
+    public boolean isEmpty() { return size == 0; }
 
-    public int getTamano() {
-        return tamano;
-    }
-
-    // 1. ENCOLAR: Inserta al final
-    public void encolar(T dato) {
-        Nodo<T> nuevoNodo = new Nodo<>(dato);
-        if (esVacia()) {
-            cabeza = nuevoNodo;
-            cola = nuevoNodo;
+    public void enqueue(T val) {
+        Nodo<T> n = new Nodo<>(val);
+        if (fin == null) {
+            frente = n;
+            fin = n;
         } else {
-            this.cola.setSiguiente(nuevoNodo);
-            this.cola = nuevoNodo;
+            fin.setSiguiente(n);
+            fin = n;
         }
-        tamano++;
+        size++;
     }
 
-    // 2. DESENCOLAR: Saca por el frente (Para dárselo a la CPU)
-    public T desencolar() {
-        if (esVacia()) return null;
-        
-        T dato = cabeza.getContenido();
-        cabeza = cabeza.getSiguiente();
-        
-        if (cabeza == null) {
-            cola = null;
-        }
-        tamano--;
-        return dato;
+    public T dequeue() {
+        if (frente == null) return null;
+        T val = frente.getContenido();
+        frente = frente.getSiguiente();
+        if (frente == null) fin = null;
+        size--;
+        return val;
     }
 
-    // 3. OBTENER: Para que la Interfaz Gráfica pueda pintar la cola
-    public T obtener(int indice) {
-        if (indice < 0 || indice >= tamano) return null;
-        Nodo<T> actual = cabeza;
-        for (int i = 0; i < indice; i++) {
-            actual = actual.getSiguiente();
-        }
-        return actual.getContenido();
+    public T peek() {
+        return (frente == null) ? null : frente.getContenido();
     }
 
-    // 4. ELIMINAR ESPECÍFICO: Para sacar procesos y mandarlos a Suspendido (Swapping)
-    public boolean eliminar(T dato) {
-        if (esVacia()) return false;
+    public Nodo<T> getFrontNode() { return frente; }
 
-        if (cabeza.getContenido().equals(dato)) {
-            desencolar();
+    // útil para reordenar: sacar un elemento específico (referencia)
+    public boolean remove(T val) {
+        if (frente == null) return false;
+        if (frente.getContenido() == val) {
+            dequeue();
             return true;
         }
-
-        Nodo<T> actual = cabeza;
-        while (actual.getSiguiente() != null) {
-            if (actual.getSiguiente().getContenido().equals(dato)) {
-                actual.setSiguiente(actual.getSiguiente().getSiguiente());
-                if (actual.getSiguiente() == null) {
-                    cola = actual;
-                }
-                tamano--;
+        Nodo<T> prev = frente;
+        Nodo<T> aux = frente.getSiguiente();
+        while (aux != null) {
+            if (aux.getContenido() == val) {
+                prev.setSiguiente(aux.getSiguiente());
+                if (aux == fin) fin = prev;
+                size--;
                 return true;
             }
-            actual = actual.getSiguiente();
+            prev = aux;
+            aux = aux.getSiguiente();
         }
         return false;
-    }
-    
-    public void vaciar() {
-        this.cabeza = null;
-        this.cola = null;
-        this.tamano = 0;
     }
 }
