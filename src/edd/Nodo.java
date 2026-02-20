@@ -4,10 +4,6 @@
  */
 package edd;
 
-/**
- *
- * @author jesus rodriguez
- */
 public class Nodo <T> {
     private T contenido;
     

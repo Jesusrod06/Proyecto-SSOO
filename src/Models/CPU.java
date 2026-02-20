@@ -100,7 +100,9 @@ public class CPU extends Thread {
     }
 
     public String getLog() {
-        return log.toString();
+        String texto = log.toString();
+        log.setLength(0); // Vacía el historial para no saturar la RAM
+        return texto;
     }
 
     // Interrupción externa (otro thread la dispara)
@@ -412,5 +414,7 @@ public class CPU extends Thread {
 
             try { Thread.sleep(cicloMs); } catch (InterruptedException ignored) {}
         }
+       
     }
+    public PCB getRunning() { return running; }
 }
