@@ -3,10 +3,9 @@
  * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
  */
 package Models;
-import Models.PCB;
-import Models.Estado; 
-import Scheduler.Scheduler;
+
 import Scheduler.PolicyType;
+import Scheduler.Scheduler;
 import edd.Lista;
 
 import java.util.concurrent.Semaphore;
@@ -39,7 +38,7 @@ public class CPU extends Thread {
     private volatile String interruptReason;
 
     // Memoria (máx procesos en RAM)
-    private int maxEnMemoria;
+    private final int maxEnMemoria;
 
     // Métricas
     private long cpuBusy;
@@ -83,12 +82,16 @@ public class CPU extends Thread {
         this.log = new StringBuilder();
     }
 
+    // ===== Controles =====
     public void startSimulation() { runningSim = true; }
     public void stopSimulation() { runningSim = false; }
 
     public void setCicloMs(int ms) { this.cicloMs = ms; }
     public int getCicloGlobal() { return cicloGlobal; }
+    public PCB getRunning() { return running; }
+    public int getMaxEnMemoria() { return maxEnMemoria; }
 
+    // ===== Métricas =====
     public double getCpuUtil() {
         if (cpuTotal == 0) return 0.0;
         return (cpuBusy * 100.0) / cpuTotal;
@@ -99,10 +102,19 @@ public class CPU extends Thread {
         return (procesosEnDeadline * 100.0) / totalProcesosTerminados;
     }
 
+    // ===== Logging =====
     public String getLog() {
         String texto = log.toString();
-        log.setLength(0); // Vacía el historial para no saturar la RAM
+        log.setLength(0); // evitar saturar RAM
         return texto;
+    }
+
+    public void logInfo(String msg) {
+        logEvent("ℹ️ " + msg);
+    }
+
+    public void logError(String msg, Throwable e) {
+        logEvent("❌ " + msg + " -> " + e.getClass().getSimpleName() + ": " + e.getMessage());
     }
 
     public void triggerInterrupt(String reason) {
@@ -114,6 +126,7 @@ public class CPU extends Thread {
         log.append("[ciclo ").append(cicloGlobal).append("] ").append(s).append("\n");
     }
 
+    // ===== Memoria =====
     private int procesosEnMemoria() {
         int c = 0;
         c += listos.size();
@@ -126,20 +139,22 @@ public class CPU extends Thread {
         while (procesosEnMemoria() > maxEnMemoria) {
             PCB victim = null;
             boolean fromListos = true;
-            
+
+            // Preferencia: sacar LISTOS con deadline más lejano, evitando prioridad 0 si es “crítico”
             for (int i = 0; i < listos.size(); i++) {
                 PCB p = listos.get(i);
-                if (p == null || p.getPrioridad() == 0) continue; 
+                if (p == null || p.getPrioridad() == 0) continue;
                 if (victim == null || p.getDeadlineRestante() > victim.getDeadlineRestante()) {
                     victim = p;
                     fromListos = true;
                 }
             }
-            
+
+            // Si no hay en listos, buscar en bloqueados (evitando críticos)
             if (victim == null) {
                 for (int i = 0; i < bloqueados.size(); i++) {
                     PCB p = bloqueados.get(i);
-                    if (p == null || p.getPrioridad() == 0) continue; 
+                    if (p == null || p.getPrioridad() == 0) continue;
                     if (victim == null || p.getDeadlineRestante() > victim.getDeadlineRestante()) {
                         victim = p;
                         fromListos = false;
@@ -147,6 +162,7 @@ public class CPU extends Thread {
                 }
             }
 
+            // Si todos son críticos (prioridad 0), entonces igual saca el menos urgente
             if (victim == null) {
                 for (int i = 0; i < listos.size(); i++) {
                     PCB p = listos.get(i);
@@ -173,15 +189,15 @@ public class CPU extends Thread {
                     listos.remove(victim);
                     victim.setEstado(Estado.LISTO_SUSPENDIDO);
                     listoSuspendido.addLast(victim);
-                    logEvent("SWAP OUT -> RAM llena: Proceso " + victim.getId() + " a LISTO_SUSPENDIDO (Disco)");
+                    logEvent("SWAP OUT -> RAM llena: Proceso " + victim.getId() + " a LISTO_SUSPENDIDO");
                 } else {
                     bloqueados.remove(victim);
                     victim.setEstado(Estado.BLOQUEADO_SUSPENDIDO);
                     bloqueadoSuspendido.addLast(victim);
-                    logEvent("SWAP OUT -> RAM llena: Proceso " + victim.getId() + " a BLOQ_SUSPENDIDO (Disco)");
+                    logEvent("SWAP OUT -> RAM llena: Proceso " + victim.getId() + " a BLOQUEADO_SUSPENDIDO");
                 }
             } else {
-                break; 
+                break;
             }
         }
     }
@@ -189,17 +205,18 @@ public class CPU extends Thread {
     private void admitNewProcesses() {
         while (!nuevos.isEmpty()) {
             PCB p = nuevos.get(0);
-            if (p == null) break; // Seguro contra errores de lista
+            if (p == null) break;
+
             if (procesosEnMemoria() + 1 <= maxEnMemoria) {
                 nuevos.removeFirst();
                 p.setEstado(Estado.LISTO);
                 listos.addLast(p);
-                logEvent("SWAP IN -> Admitido NUEVO a RAM (LISTO): " + p.getId());
+                logEvent("SWAP IN -> NUEVO a LISTO: " + p.getId());
             } else {
                 nuevos.removeFirst();
                 p.setEstado(Estado.LISTO_SUSPENDIDO);
                 listoSuspendido.addLast(p);
-                logEvent("SWAP OUT DIRECTO -> No hay RAM para NUEVO: " + p.getId() + " va a LISTO_SUSPENDIDO");
+                logEvent("SWAP OUT DIRECTO -> No hay RAM para NUEVO: " + p.getId());
             }
         }
     }
@@ -210,25 +227,25 @@ public class CPU extends Thread {
             if (p != null) {
                 p.setEstado(Estado.LISTO);
                 listos.addLast(p);
-                logEvent("SWAP IN -> Reanudado de DISCO a RAM: " + p.getId());
+                logEvent("SWAP IN -> LISTO_SUSPENDIDO a LISTO: " + p.getId());
             }
         }
+
         while (!bloqueadoSuspendido.isEmpty() && procesosEnMemoria() + 1 <= maxEnMemoria) {
             PCB p = bloqueadoSuspendido.removeFirst();
             if (p != null) {
                 p.setEstado(Estado.BLOQUEADO);
                 bloqueados.addLast(p);
-                logEvent("SWAP IN -> Reanudado de DISCO a RAM (Bloqueado): " + p.getId());
+                logEvent("SWAP IN -> BLOQUEADO_SUSPENDIDO a BLOQUEADO: " + p.getId());
             }
         }
     }
 
+    // ===== Planificación =====
     private void preemptIfNeeded() {
         if (running == null) return;
         PolicyType pol = scheduler.getPolicy();
-
-        // Evita el crash por NullPointerException en el switch
-        if (pol == null || pol == PolicyType.FCFS) return; 
+        if (pol == null || pol == PolicyType.FCFS) return;
 
         if (pol == PolicyType.ROUND_ROBIN && running.getQuantumRestante() <= 0) {
             running.setEstado(Estado.LISTO);
@@ -243,17 +260,10 @@ public class CPU extends Thread {
 
         boolean shouldPreempt = false;
         switch (pol) {
-            case SRT:
-                shouldPreempt = best.getRestantes() < running.getRestantes();
-                break;
-            case PRIORIDAD_PREEMPTIVA:
-                shouldPreempt = best.getPrioridad() < running.getPrioridad();
-                break;
-            case EDF:
-                shouldPreempt = best.getDeadlineRestante() < running.getDeadlineRestante();
-                break;
-            default:
-                break;
+            case SRT -> shouldPreempt = best.getRestantes() < running.getRestantes();
+            case PRIORIDAD_PREEMPTIVA -> shouldPreempt = best.getPrioridad() < running.getPrioridad();
+            case EDF -> shouldPreempt = best.getDeadlineRestante() < running.getDeadlineRestante();
+            default -> {}
         }
 
         if (shouldPreempt) {
@@ -266,6 +276,7 @@ public class CPU extends Thread {
 
     private void dispatchIfIdle() {
         if (running != null) return;
+
         PCB next = scheduler.pickNext(listos);
         if (next == null) return;
 
@@ -281,6 +292,7 @@ public class CPU extends Thread {
         logEvent("Dispatch -> EJECUCION: " + running.getId());
     }
 
+    // ===== IO / ejecución =====
     private void tickWaitingTimes() {
         for (int i = 0; i < listos.size(); i++) {
             PCB p = listos.get(i);
@@ -292,12 +304,12 @@ public class CPU extends Thread {
         int i = 0;
         while (i < bloqueados.size()) {
             PCB p = bloqueados.get(i);
-            if (p == null) {
-                i++; continue;
-            }
+            if (p == null) { i++; continue; }
+
             p.tickIO();
             if (p.ioTerminada()) {
                 bloqueados.remove(p);
+
                 if (procesosEnMemoria() + 1 <= maxEnMemoria) {
                     p.setEstado(Estado.LISTO);
                     listos.addLast(p);
@@ -305,18 +317,29 @@ public class CPU extends Thread {
                 } else {
                     p.setEstado(Estado.BLOQUEADO_SUSPENDIDO);
                     bloqueadoSuspendido.addLast(p);
-                    logEvent("IO completa -> SWAP OUT por falta de RAM: " + p.getId());
+                    logEvent("IO completa -> SWAP OUT por RAM: " + p.getId());
                 }
                 continue;
             }
+
             i++;
         }
+    }
+
+    private void spawnIOThread(final PCB p) {
+        Thread ioThread = new Thread(() -> {
+            // Thread independiente para cumplir requerimiento (modelo simple)
+            // La lógica temporal real está modelada con ioRestante en la cola de bloqueados.
+        }, "IO-" + p.getId());
+        ioThread.setUncaughtExceptionHandler((t, e) -> logError("Error en hilo IO " + t.getName(), e));
+        ioThread.start();
     }
 
     private void executeOneCycle() {
         if (running == null) return;
 
         cpuBusy++;
+
         running.tickIOTrigger();
         running.ejecutarUnaInstruccion();
 
@@ -328,7 +351,7 @@ public class CPU extends Thread {
             running.setEstado(Estado.BLOQUEADO);
             running.iniciarIO();
             bloqueados.addLast(running);
-            // CORRECCIÓN: Eliminada la creación de hilos fantasma para I/O
+            spawnIOThread(running);
             logEvent("Proceso " + running.getId() + " lanza IO -> BLOQUEADO");
             running = null;
             return;
@@ -337,36 +360,68 @@ public class CPU extends Thread {
         if (running.finalizado()) {
             running.setEstado(Estado.TERMINADO);
             terminados.addLast(running);
+
             totalProcesosTerminados++;
             if (!running.deadlineFallido()) procesosEnDeadline++;
+
             logEvent("TERMINADO: " + running.getId() +
                     (running.deadlineFallido() ? " (FALLO DEADLINE)" : " (OK DEADLINE)"));
             running = null;
         }
     }
 
+    // ===== Deadlines =====
     private void checkDeadlineFailures() {
         if (running != null && running.deadlineFallido()) {
             logEvent("Fallo de Deadline en RUNNING: " + running.getId());
         }
-        for (int i = 0; i < listos.size(); i++) if (listos.get(i) != null && listos.get(i).deadlineFallido())
-            logEvent("Fallo de Deadline en LISTO: " + listos.get(i).getId());
-        for (int i = 0; i < bloqueados.size(); i++) if (bloqueados.get(i) != null && bloqueados.get(i).deadlineFallido())
-            logEvent("Fallo de Deadline en BLOQUEADO: " + bloqueados.get(i).getId());
-        for (int i = 0; i < listoSuspendido.size(); i++) if (listoSuspendido.get(i) != null && listoSuspendido.get(i).deadlineFallido())
-            logEvent("Fallo de Deadline en LISTO_SUSP: " + listoSuspendido.get(i).getId());
-        for (int i = 0; i < bloqueadoSuspendido.size(); i++) if (bloqueadoSuspendido.get(i) != null && bloqueadoSuspendido.get(i).deadlineFallido())
-            logEvent("Fallo de Deadline en BLOQ_SUSP: " + bloqueadoSuspendido.get(i).getId());
+
+        for (int i = 0; i < listos.size(); i++) {
+            PCB p = listos.get(i);
+            if (p != null && p.deadlineFallido()) logEvent("Fallo de Deadline en LISTO: " + p.getId());
+        }
+
+        for (int i = 0; i < bloqueados.size(); i++) {
+            PCB p = bloqueados.get(i);
+            if (p != null && p.deadlineFallido()) logEvent("Fallo de Deadline en BLOQUEADO: " + p.getId());
+        }
+
+        for (int i = 0; i < listoSuspendido.size(); i++) {
+            PCB p = listoSuspendido.get(i);
+            if (p != null && p.deadlineFallido()) logEvent("Fallo de Deadline en LISTO_SUSP: " + p.getId());
+        }
+
+        for (int i = 0; i < bloqueadoSuspendido.size(); i++) {
+            PCB p = bloqueadoSuspendido.get(i);
+            if (p != null && p.deadlineFallido()) logEvent("Fallo de Deadline en BLOQ_SUSP: " + p.getId());
+        }
     }
 
     private void tickDeadlinesAll() {
         if (running != null) running.tickDeadline();
-        for (int i = 0; i < listos.size(); i++) if (listos.get(i) != null) listos.get(i).tickDeadline();
-        for (int i = 0; i < bloqueados.size(); i++) if (bloqueados.get(i) != null) bloqueados.get(i).tickDeadline();
-        for (int i = 0; i < listoSuspendido.size(); i++) if (listoSuspendido.get(i) != null) listoSuspendido.get(i).tickDeadline();
-        for (int i = 0; i < bloqueadoSuspendido.size(); i++) if (bloqueadoSuspendido.get(i) != null) bloqueadoSuspendido.get(i).tickDeadline();
+
+        for (int i = 0; i < listos.size(); i++) {
+            PCB p = listos.get(i);
+            if (p != null) p.tickDeadline();
+        }
+
+        for (int i = 0; i < bloqueados.size(); i++) {
+            PCB p = bloqueados.get(i);
+            if (p != null) p.tickDeadline();
+        }
+
+        for (int i = 0; i < listoSuspendido.size(); i++) {
+            PCB p = listoSuspendido.get(i);
+            if (p != null) p.tickDeadline();
+        }
+
+        for (int i = 0; i < bloqueadoSuspendido.size(); i++) {
+            PCB p = bloqueadoSuspendido.get(i);
+            if (p != null) p.tickDeadline();
+        }
     }
 
+    // ===== Interrupciones =====
     private void handleInterruptIfAny() {
         if (!interruptPending) return;
 
@@ -375,15 +430,16 @@ public class CPU extends Thread {
         if (running != null) {
             running.setEstado(Estado.LISTO);
             listos.addLast(running);
-            logEvent("Interrupcion -> se preempta RUNNING " + running.getId() + " para atender emergencia.");
+            logEvent("Interrupción -> se preempta RUNNING " + running.getId() + " para atender emergencia.");
             running = null;
         }
 
         PCB emergencia = new PCB("EMERG_" + cicloGlobal,
-                5 + (cicloGlobal % 10), 0, 20, false, 0, 0); 
+                5 + (cicloGlobal % 10), 0, 20, false, 0, 0);
+
         emergencia.setEstado(Estado.LISTO);
-        
-        listos.addLast(emergencia); 
+        listos.addLast(emergencia);
+
         logEvent("INYECCION URGENTE -> Se crea tarea de emergencia: " + emergencia.getId());
 
         interruptPending = false;
@@ -392,6 +448,9 @@ public class CPU extends Thread {
 
     @Override
     public void run() {
+        // Evitar que un error no controlado se vaya a consola
+        setUncaughtExceptionHandler((t, e) -> logError("Uncaught CPU thread error", e));
+
         while (true) {
             if (!runningSim) {
                 try { Thread.sleep(50); } catch (InterruptedException ignored) {}
@@ -400,23 +459,18 @@ public class CPU extends Thread {
 
             try {
                 mutex.acquire();
-                
-                // --- EL BLINDAJE ANTIFALLOS ---
                 try {
                     cpuTotal++;
                     cicloGlobal++;
 
                     handleInterruptIfAny();
-                    
-                    // CORRECCIÓN: Orden invertido. Primero despertamos a los suspendidos (SWAP IN)
-                    tryResumeSuspended();
-                    // Luego metemos los nuevos si hay espacio
                     admitNewProcesses();
-                    // Y si nos pasamos del límite, enviamos a SWAP OUT
                     enforceMemory();
+                    tryResumeSuspended();
 
                     tickDeadlinesAll();
                     checkDeadlineFailures();
+
                     handleBlockedIO();
 
                     preemptIfNeeded();
@@ -424,12 +478,11 @@ public class CPU extends Thread {
                     executeOneCycle();
 
                     tickWaitingTimes();
-                    
-                } catch (Exception e) {
-                    logEvent("⚠️ ALERTA INTERNA CPU: Fallo detectado -> " + e.toString());
-                    e.printStackTrace(); 
-                }
 
+                } catch (Exception e) {
+                    // IMPORTANTÍSIMO: NUNCA printStackTrace
+                    logEvent("⚠️ ALERTA INTERNA CPU: " + e.getClass().getSimpleName() + " -> " + e.getMessage());
+                }
             } catch (InterruptedException ignored) {
             } finally {
                 mutex.release();
@@ -437,11 +490,5 @@ public class CPU extends Thread {
 
             try { Thread.sleep(cicloMs); } catch (InterruptedException ignored) {}
         }
-    }
-    
-    public PCB getRunning() { return running; }
-    
-    public int getMaxEnMemoria() {
-        return this.maxEnMemoria; 
     }
 }

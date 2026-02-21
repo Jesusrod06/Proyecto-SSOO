@@ -3,6 +3,7 @@
  * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
  */
 package views;
+
 import Models.CPU;
 import Models.InterruptGenerator;
 import Models.PCB;
@@ -11,35 +12,30 @@ import Scheduler.Scheduler;
 import edd.Lista;
 
 import javax.swing.*;
-import javax.swing.border.TitledBorder;
 import javax.swing.table.AbstractTableModel;
-import javax.swing.table.DefaultTableCellRenderer;
 import java.awt.*;
 import java.util.concurrent.Semaphore;
 
 public class MissionControlPanel extends JPanel {
 
     private final CPU cpu;
+    @SuppressWarnings("unused")
     private final InterruptGenerator interruptor;
     private final Scheduler scheduler;
     private final Semaphore mutex;
 
     private final Lista<PCB> nuevos, listos, bloqueados, terminados;
-    private ProcessTableModel mtListos, mtBloqueados, mtNuevos, mtTerminados;
 
-    private JLabel lblReloj, lblCpuProcess, lblDeadline;
-    private JProgressBar pbCpu;
-    private JButton btnStart, btnStop, btnEmergency;
-    private boolean hilosIniciados = false;
-    
-    // Colores temáticos
-    private final Color BG_COLOR = new Color(15, 15, 30);
-    private final Color BORDER_PURPLE = new Color(138, 43, 226);
-    private final Color TEXT_CYAN = new Color(0, 255, 255);
+    private JLabel lblReloj, lblCpuRunning, lblMetricas;
+    private JTextArea txtLog;
+    private JComboBox<PolicyType> cbPoliticas;
+    private JSpinner spQuantum, spTickMs;
+
+    private ProcessTableModel mtNuevos, mtListos, mtBloqueados, mtTerminados;
 
     public MissionControlPanel(CPU cpu, InterruptGenerator interruptor, Scheduler scheduler,
                                Lista<PCB> nuevos, Lista<PCB> listos, Lista<PCB> bloqueados, Lista<PCB> terminados,
-                               Lista<PCB> listoSuspendido, Lista<PCB> bloqueadoSuspendido, Semaphore mutex) {
+                               Semaphore mutex) {
         this.cpu = cpu;
         this.interruptor = interruptor;
         this.scheduler = scheduler;
@@ -50,221 +46,265 @@ public class MissionControlPanel extends JPanel {
         this.mutex = mutex;
 
         setLayout(new BorderLayout(10, 10));
-        setBackground(BG_COLOR);
-        setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        setBackground(new Color(20, 20, 40));
 
         initUI();
         startGuiTimer();
     }
 
     private void initUI() {
-        // --- HEADER ---
-        JPanel panelNorte = new JPanel(new BorderLayout());
-        panelNorte.setOpaque(false);
-        
-        lblReloj = new JLabel("MISSION CLOCK: Cycle 0");
-        lblReloj.setFont(new Font("Consolas", Font.BOLD, 24));
-        lblReloj.setForeground(TEXT_CYAN);
-        lblReloj.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(Color.GRAY, 2, true),
-                BorderFactory.createEmptyBorder(5, 15, 5, 15)
-        ));
-        
-        JPanel pnlReloj = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        pnlReloj.setOpaque(false);
-        pnlReloj.add(lblReloj);
-        panelNorte.add(pnlReloj, BorderLayout.EAST);
+        // ===== NORTH: Controls =====
+        JPanel panelNorte = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 10));
+        panelNorte.setBackground(new Color(40, 44, 52));
+
+        JButton btnStart = new JButton("▶ Start");
+        JButton btnStop = new JButton("⏹ Stop");
+        JButton btnNew = new JButton("➕ New Process");
+        JButton btn20 = new JButton("⚡ Generate 20 Random");
+        JButton btnEmergency = new JButton("🚨 EMERGENCY");
+
+        cbPoliticas = new JComboBox<>(PolicyType.values());
+        cbPoliticas.setSelectedItem(scheduler.getPolicy());
+
+        spQuantum = new JSpinner(new SpinnerNumberModel(scheduler.getRrQuantum(), 1, 20, 1));
+        spTickMs = new JSpinner(new SpinnerNumberModel(500, 50, 3000, 50)); // inicial
+
+        styleButton(btnStart, new Color(76, 175, 80));
+        styleButton(btnStop, new Color(244, 67, 54));
+        styleButton(btnEmergency, new Color(255, 152, 0));
+
+        panelNorte.add(btnStart);
+        panelNorte.add(btnStop);
+        panelNorte.add(btnNew);
+        panelNorte.add(btn20);
+        panelNorte.add(btnEmergency);
+
+        panelNorte.add(labelWhite("Policy:"));
+        panelNorte.add(cbPoliticas);
+
+        panelNorte.add(labelWhite("RR Quantum:"));
+        panelNorte.add(spQuantum);
+
+        panelNorte.add(labelWhite("Tick (ms):"));
+        panelNorte.add(spTickMs);
+
         add(panelNorte, BorderLayout.NORTH);
 
-        // --- CENTER: 3 Columns ---
-        JPanel panelCentral = new JPanel(new GridLayout(1, 3, 20, 0));
+        // ===== CENTER: Tables =====
+        JPanel panelCentral = new JPanel(new GridLayout(2, 2, 10, 10));
         panelCentral.setOpaque(false);
+        panelCentral.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
+        mtNuevos = new ProcessTableModel(nuevos);
         mtListos = new ProcessTableModel(listos);
         mtBloqueados = new ProcessTableModel(bloqueados);
-        
-        // 1. Ready Queue
-        panelCentral.add(crearPanelTabla("READY QUEUE", mtListos));
+        mtTerminados = new ProcessTableModel(terminados);
 
-        // 2. CPU / Running Process
-        JPanel panelCPU = new JPanel(new BorderLayout(0, 20));
-        panelCPU.setOpaque(false);
-        
-        JPanel cpuDisplay = new JPanel(new GridLayout(3, 1));
-        cpuDisplay.setBackground(new Color(20, 20, 40));
-        cpuDisplay.setBorder(crearBorde("RUNNING PROCESS (CPU)"));
-        
-        lblCpuProcess = new JLabel("[IDLE]", SwingConstants.CENTER);
-        lblCpuProcess.setForeground(Color.WHITE);
-        lblCpuProcess.setFont(new Font("SansSerif", Font.BOLD, 16));
-        
-        pbCpu = new JProgressBar(0, 100);
-        pbCpu.setStringPainted(true);
-        pbCpu.setForeground(TEXT_CYAN);
-        pbCpu.setBackground(Color.DARK_GRAY);
-        
-        lblDeadline = new JLabel("Deadline in: -- cycles", SwingConstants.CENTER);
-        lblDeadline.setForeground(Color.LIGHT_GRAY);
-        
-        cpuDisplay.add(lblCpuProcess);
-        cpuDisplay.add(pbCpu);
-        cpuDisplay.add(lblDeadline);
-        
-        panelCPU.add(cpuDisplay, BorderLayout.NORTH);
+        panelCentral.add(panelTabla("NUEVOS", mtNuevos));
+        panelCentral.add(panelTabla("LISTOS (RAM)", mtListos));
+        panelCentral.add(panelTabla("BLOQUEADOS (I/O)", mtBloqueados));
+        panelCentral.add(panelTabla("TERMINADOS", mtTerminados));
 
-        btnEmergency = new JButton("<html><center>EMERGENCY INTERRUPTION<br>(MICRO-METEORITE)</center></html>");
-        btnEmergency.setBackground(new Color(200, 0, 0));
-        btnEmergency.setForeground(Color.WHITE);
-        btnEmergency.setFont(new Font("SansSerif", Font.BOLD, 14));
-        btnEmergency.setFocusPainted(false);
-        btnEmergency.setPreferredSize(new Dimension(200, 80));
-        
-        JPanel pnlBtn = new JPanel();
-        pnlBtn.setOpaque(false);
-        pnlBtn.add(btnEmergency);
-        panelCPU.add(pnlBtn, BorderLayout.CENTER);
-
-        panelCentral.add(panelCPU);
-
-        // 3. Blocked Queue
-        panelCentral.add(crearPanelTabla("BLOCKED QUEUE (I/O)", mtBloqueados));
         add(panelCentral, BorderLayout.CENTER);
 
-        // --- SOUTH: Controls & Secondary queues ---
-        JPanel panelSur = new JPanel(new BorderLayout(10, 10));
-        panelSur.setOpaque(false);
-        
-        JPanel controles = new JPanel(new FlowLayout(FlowLayout.CENTER, 15, 10));
-        controles.setOpaque(false);
-        btnStart = new JButton("▶ Start Simulation");
-        btnStop = new JButton("⏹ Pause");
-        JButton btnAdd = new JButton("➕ Add Process");
-        btnStop.setEnabled(false);
-        
-        controles.add(btnStart);
-        controles.add(btnStop);
-        controles.add(btnAdd);
+        // ===== EAST: CPU Monitor =====
+        JPanel panelEste = new JPanel();
+        panelEste.setLayout(new BoxLayout(panelEste, BoxLayout.Y_AXIS));
+        panelEste.setPreferredSize(new Dimension(280, 0));
+        panelEste.setBorder(crearBorde("CPU MONITOR"));
+        panelEste.setBackground(new Color(25, 25, 55));
 
-        JPanel secundario = new JPanel(new GridLayout(1, 2, 10, 0));
-        secundario.setOpaque(false);
-        mtNuevos = new ProcessTableModel(nuevos);
-        mtTerminados = new ProcessTableModel(terminados);
-        secundario.add(crearPanelTabla("NEW QUEUE", mtNuevos));
-        secundario.add(crearPanelTabla("TERMINATED", mtTerminados));
-        secundario.setPreferredSize(new Dimension(0, 150));
+        lblReloj = new JLabel("Global Cycle: 0");
+        lblReloj.setFont(new Font("Consolas", Font.BOLD, 16));
+        lblReloj.setForeground(Color.WHITE);
+        lblReloj.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
-        panelSur.add(controles, BorderLayout.NORTH);
-        panelSur.add(secundario, BorderLayout.CENTER);
-        add(panelSur, BorderLayout.SOUTH);
+        lblCpuRunning = new JLabel("<html><b>RUNNING:</b> [IDLE]</html>");
+        lblCpuRunning.setFont(new Font("Consolas", Font.PLAIN, 13));
+        lblCpuRunning.setForeground(Color.WHITE);
+        lblCpuRunning.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
-        // --- EVENTOS ---
-        btnStart.addActionListener(e -> {
-            if (!hilosIniciados) {
-                cpu.start();
-                interruptor.start();
-                hilosIniciados = true;
-            }
-            cpu.startSimulation();
-            btnStart.setEnabled(false);
-            btnStop.setEnabled(true);
-        });
+        lblMetricas = new JLabel("<html>CPU Util: 0%<br>Mission Success: 0%</html>");
+        lblMetricas.setFont(new Font("Consolas", Font.PLAIN, 13));
+        lblMetricas.setForeground(Color.WHITE);
+        lblMetricas.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
-        btnStop.addActionListener(e -> {
-            cpu.stopSimulation();
-            btnStart.setEnabled(true);
-            btnStop.setEnabled(false);
-        });
+        panelEste.add(lblReloj);
+        panelEste.add(new JSeparator());
+        panelEste.add(lblCpuRunning);
+        panelEste.add(new JSeparator());
+        panelEste.add(lblMetricas);
 
-        btnAdd.addActionListener(e -> abrirDialogoProceso());
-        
-        // Simular interrupción manual
-        btnEmergency.addActionListener(e -> System.out.println("EMERGENCY INTERRUPT TRIGGERED!")); 
-    }
+        add(panelEste, BorderLayout.EAST);
 
-    private TitledBorder crearBorde(String titulo) {
-        return BorderFactory.createTitledBorder(
-                BorderFactory.createLineBorder(BORDER_PURPLE, 2, true),
-                titulo, TitledBorder.CENTER, TitledBorder.TOP,
-                new Font("SansSerif", Font.BOLD, 14), TEXT_CYAN);
-    }
+        // ===== SOUTH: Log =====
+        JPanel panelLog = new JPanel(new BorderLayout());
+        panelLog.setOpaque(false);
+        panelLog.setBorder(crearBorde("SYSTEM LOG"));
 
-    private JPanel crearPanelTabla(String titulo, AbstractTableModel modelo) {
-        JPanel p = new JPanel(new BorderLayout());
-        p.setOpaque(false);
-        p.setBorder(crearBorde(titulo));
-        
-        JTable t = new JTable(modelo);
-        t.setBackground(new Color(25, 25, 40));
-        t.setForeground(Color.WHITE);
-        t.getTableHeader().setBackground(Color.BLACK);
-        t.getTableHeader().setForeground(TEXT_CYAN);
-        t.setFillsViewportHeight(true);
-        
-        JScrollPane sp = new JScrollPane(t);
-        sp.getViewport().setBackground(new Color(25, 25, 40));
-        p.add(sp, BorderLayout.CENTER);
-        return p;
+        txtLog = new JTextArea(8, 60);
+        txtLog.setEditable(false);
+        txtLog.setBackground(Color.BLACK);
+        txtLog.setForeground(Color.GREEN);
+        txtLog.setFont(new Font("Consolas", Font.PLAIN, 12));
+
+        JScrollPane spLog = new JScrollPane(txtLog);
+        spLog.getViewport().setBackground(Color.BLACK);
+        panelLog.add(spLog, BorderLayout.CENTER);
+
+        add(panelLog, BorderLayout.SOUTH);
+
+        // ===== Events =====
+        btnStart.addActionListener(e -> cpu.startSimulation());
+        btnStop.addActionListener(e -> cpu.stopSimulation());
+
+        cbPoliticas.addActionListener(e -> scheduler.setPolicy((PolicyType) cbPoliticas.getSelectedItem()));
+        spQuantum.addChangeListener(e -> scheduler.setRrQuantum((int) spQuantum.getValue()));
+        spTickMs.addChangeListener(e -> cpu.setCicloMs((int) spTickMs.getValue()));
+
+        btnNew.addActionListener(e -> abrirDialogoProceso());
+        btn20.addActionListener(e -> generar20Procesos());
+
+        // EMERGENCY: NO PRINTS, dispara interrupción real
+        btnEmergency.addActionListener(e -> cpu.triggerInterrupt("Micro-meteorito (Botón de emergencia)"));
     }
 
     private void abrirDialogoProceso() {
         NewProcessDialog dlg = new NewProcessDialog((Frame) SwingUtilities.getWindowAncestor(this));
         PCB p = dlg.getProcess();
         if (p == null) return;
-        new Thread(() -> {
-            try {
-                mutex.acquire();
+
+        try {
+            mutex.acquire();
+            nuevos.addLast(p);
+        } catch (InterruptedException ignored) {
+        } finally {
+            mutex.release();
+        }
+    }
+
+    private void generar20Procesos() {
+        try {
+            mutex.acquire();
+            for (int i = 0; i < 20; i++) {
+                int base = nuevos.size() + listos.size() + bloqueados.size() + terminados.size() + 1;
+                boolean io = (base % 2 == 0);
+
+                PCB p = new PCB("AUTO_" + base,
+                        10 + (base % 50),
+                        1 + (base % 10),
+                        30 + (base % 120),
+                        io,
+                        3 + (base % 10),
+                        2 + (base % 10)
+                );
                 nuevos.addLast(p);
-            } catch (InterruptedException ignored) {} 
-            finally { mutex.release(); }
-        }).start();
+            }
+        } catch (InterruptedException ignored) {
+        } finally {
+            mutex.release();
+        }
     }
 
     private void startGuiTimer() {
-        Timer guiTimer = new Timer(100, e -> {
-            if (mutex.tryAcquire()) {
-                try {
-                    mtListos.fireTableDataChanged();
-                    mtBloqueados.fireTableDataChanged();
-                    mtNuevos.fireTableDataChanged();
-                    mtTerminados.fireTableDataChanged();
+        Timer guiTimer = new Timer(120, e -> {
+            try {
+                mutex.acquire();
 
-                    lblReloj.setText("MISSION CLOCK: Cycle " + cpu.getCicloGlobal());
+                mtNuevos.fireTableDataChanged();
+                mtListos.fireTableDataChanged();
+                mtBloqueados.fireTableDataChanged();
+                mtTerminados.fireTableDataChanged();
 
-                    PCB r = cpu.getRunning();
-                    if (r != null) {
-                        lblCpuProcess.setText(r.getNombre() + " [ID:" + r.getId() + "]");
-                        lblDeadline.setText("Deadline in: " + r.getDeadlineRestante() + " cycles");
-                        pbCpu.setValue(r.getRestantes()); // Simplificado para mostrar algo de movimiento
-                        pbCpu.setString("Rem: " + r.getRestantes() + " cycles");
-                    } else {
-                        lblCpuProcess.setText("[IDLE]");
-                        lblDeadline.setText("Deadline in: -- cycles");
-                        pbCpu.setValue(0);
-                        pbCpu.setString("");
-                    }
-                } finally {
-                    mutex.release();
+                lblReloj.setText("Global Cycle: " + cpu.getCicloGlobal());
+
+                PCB r = cpu.getRunning();
+                if (r != null) {
+                    lblCpuRunning.setText(String.format(
+                            "<html><b>RUNNING:</b> %s<br>ID:%d | Prio:%d<br>Rem:%d | DDL:%d<br>PC:%d | MAR:%d</html>",
+                            r.getNombre(), r.getId(), r.getPrioridad(),
+                            r.getRestantes(), r.getDeadlineRestante(),
+                            r.getPc(), r.getMar()
+                    ));
+                } else {
+                    lblCpuRunning.setText("<html><b>RUNNING:</b> [IDLE]</html>");
                 }
+
+                lblMetricas.setText(String.format(
+                        "<html>CPU Util: %.1f%%<br>Mission Success: %.1f%%</html>",
+                        cpu.getCpuUtil(), cpu.getTasaExitoMision()
+                ));
+
+                // Leer log del backend y mostrarlo en pantalla
+                String logs = cpu.getLog();
+                if (logs != null && !logs.isEmpty()) {
+                    txtLog.append(logs);
+                    txtLog.setCaretPosition(txtLog.getDocument().getLength());
+                }
+
+            } catch (Exception ex) {
+                // NO printStackTrace: llevar a log del CPU
+                cpu.logError("GUI Timer Error", ex);
+            } finally {
+                mutex.release();
             }
         });
         guiTimer.start();
     }
 
+    // ===== UI Helpers =====
+    private JPanel panelTabla(String titulo, AbstractTableModel model) {
+        JPanel p = new JPanel(new BorderLayout());
+        p.setOpaque(false);
+        p.setBorder(crearBorde(titulo));
+        JTable t = new JTable(model);
+        p.add(new JScrollPane(t), BorderLayout.CENTER);
+        return p;
+    }
+
+    private JLabel labelWhite(String text) {
+        JLabel l = new JLabel(text);
+        l.setForeground(Color.WHITE);
+        return l;
+    }
+
+    private void styleButton(JButton b, Color bg) {
+        b.setBackground(bg);
+        b.setForeground(Color.WHITE);
+        b.setFocusPainted(false);
+    }
+
+    private javax.swing.border.TitledBorder crearBorde(String titulo) {
+        javax.swing.border.TitledBorder tb = BorderFactory.createTitledBorder(titulo);
+        tb.setTitleColor(Color.WHITE);
+        return tb;
+    }
+
+    // ===== Table Model =====
     private static class ProcessTableModel extends AbstractTableModel {
         private final Lista<PCB> lista;
-        private final String[] cols = {"Process", "Priority", "Remaining"};
+        private final String[] cols = {"ID", "Name", "State", "Remaining", "Deadline", "Prio"};
 
-        public ProcessTableModel(Lista<PCB> lista) { this.lista = lista; }
+        public ProcessTableModel(Lista<PCB> lista) {
+            this.lista = lista;
+        }
+
         @Override public int getRowCount() { return lista.size(); }
         @Override public int getColumnCount() { return cols.length; }
-        @Override public String getColumnName(int c) { return cols[c]; }
-        @Override public Object getValueAt(int r, int c) {
-            PCB p = lista.get(r);
+        @Override public String getColumnName(int column) { return cols[column]; }
+
+        @Override
+        public Object getValueAt(int rowIndex, int columnIndex) {
+            PCB p = lista.get(rowIndex);
             if (p == null) return null;
-            return switch (c) {
-                case 0 -> p.getNombre();
-                case 1 -> p.getPrioridad();
-                case 2 -> p.getRestantes();
+
+            return switch (columnIndex) {
+                case 0 -> p.getId();
+                case 1 -> p.getNombre();
+                case 2 -> p.getEstado();
+                case 3 -> p.getRestantes();
+                case 4 -> p.getDeadlineRestante();
+                case 5 -> p.getPrioridad();
                 default -> null;
             };
         }

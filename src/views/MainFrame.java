@@ -3,9 +3,8 @@
  * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
  */
 package views;
+
 import Models.CPU;
-import java.awt.BorderLayout;
-import javax.swing.JPanel;
 import Models.InterruptGenerator;
 import Models.PCB;
 import Scheduler.Scheduler;
@@ -21,33 +20,31 @@ public class MainFrame extends JFrame {
                      Lista<PCB> nuevos, Lista<PCB> listos, Lista<PCB> bloqueados, Lista<PCB> terminados,
                      Lista<PCB> listoSuspendido, Lista<PCB> bloqueadoSuspendido, Semaphore mutex) {
 
-        setTitle("UNIMET-Sat RTOS Simulator");
+        setTitle("RTOS Simulator - Microsatellite Mission");
         setSize(1300, 800);
         setLocationRelativeTo(null);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        getContentPane().setBackground(new Color(10, 10, 25)); // Fondo oscuro base
-
-        // Personalizar colores de las pestañas
-        UIManager.put("TabbedPane.background", new Color(30, 30, 50));
-        UIManager.put("TabbedPane.foreground", Color.WHITE);
-        UIManager.put("TabbedPane.selected", new Color(138, 43, 226)); // Morado
+        setLayout(new BorderLayout());
 
         JTabbedPane tabs = new JTabbedPane();
-        tabs.setFont(new Font("SansSerif", Font.BOLD, 14));
 
-        JPanel missionControl = new MissionControlPanel(
+        // Tab 1: Mission Control
+        MissionControlPanel mission = new MissionControlPanel(
                 cpu, interruptor, scheduler,
                 nuevos, listos, bloqueados, terminados,
-                listoSuspendido, bloqueadoSuspendido, mutex
+                mutex
         );
 
-        JPanel memoryPanel = new MemoryManagementPanel(
+        // Tab 2: Memory & Swap (usa tu panel existente si ya lo tienes)
+        // Si tu clase se llama distinto, cambia aquí el nombre.
+        MemoryManagementPanel memory = new MemoryManagementPanel(
                 cpu, nuevos, listos, bloqueados,
-                listoSuspendido, bloqueadoSuspendido, mutex
+                listoSuspendido, bloqueadoSuspendido,
+                mutex
         );
 
-        tabs.addTab("🚀 Mission Control", missionControl);
-        tabs.addTab("💾 Memory Management & Swap", memoryPanel);
+        tabs.addTab("🚀 Mission Control", mission);
+        tabs.addTab("💾 Memory Management & Swap", memory);
 
         add(tabs, BorderLayout.CENTER);
     }
