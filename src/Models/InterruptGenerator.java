@@ -20,19 +20,23 @@ public class InterruptGenerator extends Thread {
 
    public void stopGen() { 
         this.running = false; 
-        this.interrupt(); // 
+        this.interrupt(); 
     }
 
     @Override
     public void run() {
         while (running) {
             try {
-                // cada 2 a 6 segundos dispara una interrupción
                 int ms = 2000 + rnd.nextInt(4000);
                 Thread.sleep(ms);
-            } catch (InterruptedException ignored) {}
+            } catch (InterruptedException e) {
+                // CORRECCIÓN: Salir del ciclo inmediatamente si apagan el generador
+                break; 
+            }
 
-            // Razones tipo misión
+            // CORRECCIÓN: Doble validación por seguridad
+            if (!running) break;
+
             String reason;
             int k = rnd.nextInt(3);
             if (k == 0) reason = "Ráfaga solar";

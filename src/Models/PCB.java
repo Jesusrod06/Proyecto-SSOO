@@ -3,7 +3,6 @@
  * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
  */
 package Models;
-
 public class PCB {
     private static int NEXT_ID = 1;
 
@@ -12,30 +11,23 @@ public class PCB {
 
     private Estado estado;
 
-    // Registros simulados
-    private int pc;   // program counter
-    private int mar;  // memory address register
+    private int pc;   
+    private int mar;  
 
-    // Parámetros de planificación
-    private int prioridad;          // menor = más importante (tú decides convención)
-    private int instruccionesTotal; // total instrucciones
-    private int restantes;          // restantes por ejecutar
+    private int prioridad;          
+    private int instruccionesTotal; 
+    private int restantes;          
 
-    // Deadline (cuenta regresiva en ciclos)
     private int deadlineTotal;
     private int deadlineRestante;
 
-    // CPU / E/S
     private boolean requiereIO;
-    private int ciclosParaLanzarIO;     // cuando llega a 0, se bloquea
-    private int ciclosIOServicio;       // cuanto dura bloqueado
+    private int ciclosParaLanzarIO;      
+    private int ciclosIOServicio;        
     private int ioRestante;
 
-    // Round Robin
     private int quantumRestante;
-
-    // Métrica
-    private int tiempoEspera; // ciclos en listo
+    private int tiempoEspera; 
 
     public PCB(String nombre, int instruccionesTotal, int prioridad, int deadlineCiclos,
                boolean requiereIO, int ciclosParaLanzarIO, int ciclosIOServicio) {
@@ -62,7 +54,6 @@ public class PCB {
         this.tiempoEspera = 0;
     }
 
-    // ==== lógica por ciclo ====
     public void tickDeadline() {
         if (estado != Estado.TERMINADO && deadlineRestante > 0) {
             deadlineRestante--;
@@ -83,6 +74,8 @@ public class PCB {
 
     public void iniciarIO() {
         this.ioRestante = ciclosIOServicio;
+        // CORRECCIÓN: Apagamos la bandera para que no pida I/O infinitamente
+        this.requiereIO = false; 
     }
 
     public void tickIO() {
@@ -104,7 +97,6 @@ public class PCB {
         return restantes <= 0;
     }
 
-    // ==== getters/setters (mínimos) ====
     public int getId() { return id; }
     public String getNombre() { return nombre; }
     public Estado getEstado() { return estado; }
