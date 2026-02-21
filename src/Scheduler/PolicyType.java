@@ -4,10 +4,7 @@
  */
 package Scheduler;
 
-/**
- *
- * @author jleal
- */
+
 
 public enum PolicyType {
     FCFS,

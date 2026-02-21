@@ -3,11 +3,6 @@
  * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
  */
 
-
-/**
- *
- * @author jleal
- */
 package Scheduler;
 
 import Models.PCB;
@@ -87,4 +82,5 @@ public class Scheduler {
         }
         return best;
     }
+
 }

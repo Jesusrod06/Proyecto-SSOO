@@ -52,7 +52,8 @@ public class Lista<T> {
 
     public boolean remove(T value) {
         if (cabeza == null) return false;
-        if (cabeza.getContenido() == value) {
+        // CORRECCIÓN: Usar .equals() en lugar de ==
+        if (cabeza.getContenido().equals(value)) {
             cabeza = cabeza.getSiguiente();
             size--;
             return true;
@@ -60,7 +61,8 @@ public class Lista<T> {
         Nodo<T> prev = cabeza;
         Nodo<T> aux = cabeza.getSiguiente();
         while (aux != null) {
-            if (aux.getContenido() == value) {
+            // CORRECCIÓN: Usar .equals() en lugar de ==
+            if (aux.getContenido().equals(value)) {
                 prev.setSiguiente(aux.getSiguiente());
                 size--;
                 return true;
@@ -73,7 +75,6 @@ public class Lista<T> {
 
     public Nodo<T> getHeadNode() { return cabeza; }
 
-    // Inserción ordenada según comparador propio (sin java.util.Comparator)
     public interface Cmp<T> { int compare(T a, T b); }
 
     public void insertSorted(T value, Cmp<T> cmp) {
