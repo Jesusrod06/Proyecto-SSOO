@@ -4,6 +4,8 @@
  */
 package views;
 import Models.CPU;
+import java.awt.BorderLayout;
+import javax.swing.JPanel;
 import Models.InterruptGenerator;
 import Models.PCB;
 import Scheduler.Scheduler;

@@ -3,7 +3,6 @@
  * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
  */
 package views;
-
 import Models.CPU;
 import Models.InterruptGenerator;
 import Models.PCB;
